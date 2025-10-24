@@ -25,31 +25,32 @@ out <- lapply(1:nrow(scenarios), \(i) {
     wgt_cv <- gen_cv(1)
     wgt_sd <- s_targ_wt*wgt_cv
     # generate EPG values for the population, one per individual
-    feces_epg <- rnbinom(n = Na, size = k, mu = m)
+    feces_epg <- rnbinom(n = ind_samp, size = k, mu = m)
     
     # simulate samples of these following a Poisson dist, depending on random n
     # samples per individual
-    sample_epg <- matrix(rpois(Na*s_targ_wt,lambda = feces_epg), nrow = Na) |> apply(1, mean)
-    # sample_epg <- rpois(Na, feces_epg*sample_weights)
+    # sample_epg <- matrix(rpois(Na*s_targ_wt,lambda = feces_epg), nrow = Na) |> apply(1, mean)
+
     # simulate variable weight taken from the sample
     # sd <- sqrt(log(wgt_cv^2+1))
-    sample_weights <- rnorm(Na, s_targ_wt, wgt_sd)
+    sample_weights <- rnorm(ind_samp, s_targ_wt, wgt_sd)
     
     # total eggs in sample
-    sample_eggs <- sample_epg*sample_weights
+    # sample_eggs <- sample_epg*sample_weights
+    sample_eggs <- rpois(ind_samp, sample_weights*feces_epg)
     
     # cum total weight
-    cum_samp_weight <- cumsum(sample_weights)
+    cum_samp_weight <- sum(sample_weights)
     
     # cum egg number
-    cum_egg_number <- cumsum(sample_eggs)
+    cum_egg_number <- sum(sample_eggs)
     
     # composite EPG
     composite_epg <- cum_egg_number/cum_samp_weight
     
     # eggs counted
-    eggs_counted <- floor(composite_epg/dl)
-    eggs_count_pois <- rpois(Na, lambda = eggs_counted)
+    exp_egg_count <- floor(composite_epg/dl)
+    eggs_count_pois <- rpois(1, lambda = eggs_counted)
     
     # observed FEC
     epg_obs <- (eggs_count_pois*dl)[ind_samp]
