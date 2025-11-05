@@ -12,14 +12,24 @@ library(ggpubr)
 
 gen_cv <- function(n) VGAM::rtriangle(n, lower = 0.2, theta = 0.3, upper = 0.73)# coefficient of variation in weight samples, random value from a triangular dist. (0.2, 0.3, 0.73)
 
-niter <- 2000 # number of iterations per scenario
-ms <- c(100, 500, 2000) # population mean EPG values
-ks <- c(0.1, 0.5, 2, 10) # population aggregation values
-Na <- 30 # number of animals
+niter <- 100            # number of iterations per scenario
+Na <- 30                 # number of animals
+ms <- c(100, 500, 2000)  # population mean EPG values
+ks <- c(0.1, 0.5, 2, 10) # population EPG aggregation values
+targ_wt <- 5             # sample (farm level) target weight
+subsamp_wts <- c(0.5,1,2) # subsample weights for composite (at the lab level)
+subsamp_sds <- 1/1.96*c(0.1,0.2,0.5,1) # subsample weight sds: tolerance in g divided by 1.96 (95%CI of normal dist)
+flot_wt <- 2      # subsample weight for indiv. FEC. 2 g for McMaster technique
+dls <- c(5, 10, 20, 50)  # test detection limit (epg)
+mix_effs <- c(0,0.5,1)   # fecal sample mixing efficiency
+resamp <- c(T,F)         # with resampling Y/N   
 
 # scenarios, each one has a different combination of m, the mean parasite
 # burden, and k, the inverse aggregation parameter
-scenarios <- expand.grid(m = ms, k = ks)
+scenarios <- expand.grid(m = ms, k = ks, resamp = resamp, 
+                         ss_wt = subsamp_wts, ss_sd = subsamp_sds, 
+                         mef = mix_effs, dl = dls
+                         )
 
 out <- lapply(1:nrow(scenarios), \(i) {
   m <- scenarios$m[i]
