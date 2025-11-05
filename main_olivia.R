@@ -69,38 +69,6 @@ outdb <- as.data.frame(outdb)
 names(outdb) <- c("m","k", "tgt_wt", "wt_sd", "dlim", "inds", "epg_comp", "epg_ind", "epg_tru")
 head(outdb)
 
-#### Visualization ####
-# fig 2 shows the absolute difference of the composite FEC with respect to the population m
-p_absdif <- ggplot(outdb, aes(inds,abs(epg_comp-m)+0.1))+
-  # geom_point()+
-  facet_wrap(~m, labeller = labeller(m = \(x) paste("m =",x)))+
-  geom_smooth(method = 'lm', aes(lty = as.factor(k)), color = 'black')+
-  labs(x = "Individuals sampled", y = "Absolute difference", lty = "k")+
-  scale_y_log10()+
-  theme_pubr(legend = 'right')
-p_absdif
+# export
+saveRDS(outdb, "sim_output.rds")
 
-# relative difference dot plot
-p_reldif <- ggplot(outdb, aes(inds,epg_comp/m))+
-  geom_hline(yintercept = 1, lty = 2)+
-  geom_point(alpha = 0.1)+
-  facet_wrap(~m, labeller = labeller(m = \(x) paste("m =",x)))+
-  geom_smooth(method = 'lm', aes(lty = as.factor(k)), color = 'red')+
-  labs(x = "Individuals sampled", y = "Relative difference", lty = "k")+
-  scale_y_log10()+
-  theme_pubr(legend = 'right')
-p_reldif
-
-# relative difference lm plot
-p_reldif <- ggplot(outdb, aes(inds,epg_comp/m))+
-  geom_hline(yintercept = 1, lty = 2)+
-  # geom_point()+
-  facet_wrap(~m, labeller = labeller(m = \(x) paste("m =",x)))+
-  geom_smooth(method = 'lm', aes(lty = as.factor(k)), color = 'black')+
-  labs(x = "Individuals sampled", y = "Relative difference", lty = "k")+
-  theme_pubr(legend = 'right')
-p_reldif
-# combine the figures
-ggarrange(p_absdif,p_reldif, nrow = 2, common.legend = T, legend = 'right')
-
-#### Stats ####
