@@ -1,4 +1,13 @@
 library(ggplot2)
+# Pooled Fecal Egg Count simulation
+# Juan S. Vargas
+# November 2025
+#
+
+#' Code to simulate collection and analysis of fecal samples from goats. The
+#' simulation focuses on understanding the differences between analyzing samples
+#' individually and as a pooled sample
+library(tidyverse)
 library(ggpubr)
 
 gen_cv <- function(n) VGAM::rtriangle(n, lower = 0.2, theta = 0.3, upper = 0.73)# coefficient of variation in weight samples, random value from a triangular dist. (0.2, 0.3, 0.73)
