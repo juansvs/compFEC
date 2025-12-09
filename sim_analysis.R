@@ -43,26 +43,48 @@ filter(outdb, m == 500, mef ==1) %>% summarise(hic = mean(epg_comp>=2000, na.rm=
                                                .by = k)
 filter(outdb, m == 2000, mef ==1) %>% summarise(loc = mean(epg_comp<=500, na.rm=T), loi = mean(epg_ind_avg<=500, na.rm=T),
                                                 .by = k)
-## GLMMs
-#false negatives
-fn_db <- mutate(outdb_lg, fn = relerr==-1) %>% slice_sample(prop = 0.1)
-fn_glmm <- glmmTMB(fn ~ n_samp+resamp+wt_cv+factor(mef)*method+factor(m)+k+ss_sd+ss_wt+(1|scenid),
+#### Statistical tests ####
+# false negatives
+fn_db <- mutate(outdb_lg, fn = relerr == -1) %>% slice_sample(prop = 0.1)
+fn_glmm <- glmmTMB(fn ~ n_samp + resamp + wt_cv + factor(mef) * method +
+                     factor(m) + factor(k) + ss_sd + ss_wt + factor(dl) + (1|scenid),
                    family = 'binomial', data = fn_db)
 summary(fn_glmm)
+
+# same analysis but include only one set of m and k, and focus on factors that
+# can be controlled
+fn_db2 <- mutate(outdb_lg, fn = relerr == -1) %>%
+  filter(m == 500, k == 0.5) %>%
+  slice_sample(prop = 0.2)
+fn_glmm2 <- glmmTMB(fn ~ n_samp + resamp + wt_cv + factor(mef) * method +
+                     ss_sd + ss_wt + factor(dl) + (1|scenid),
+                   family = 'binomial', data = fn_db,
+                   control = glmmTMBControl(optimizer = optim,
+                                            optArgs = list(method = "BFGS")))
+summary(fn_glmm2)
+# these models suggest that the most relevant factors for the false negative
+# rate are the method, mixing efficacy, and aggregation level. The method has
+# the greatest effect by far, using independent samples practically eliminates
+# the probability of getting a false negative. Mixing well (mef = 1) reduces it
+# by 96.2%, and even partial mixing reduces it by 94.2%. Among the factors that
+# are beyond the samplers control, aggregation seems to be the most relevant. At
+# k = 0.5 the probability is decreased by 88.7% compared to the highest
+# aggregation, and at k = 2 the reduction is of 98.3%.
+
 glmm_db <- slice_sample(outdb_lg, prop = 0.1) %>% mutate(resp = abs(0.1+epg-m)/m) 
 absrelerr_glmm <- glmmTMB(resp~n_samp*resamp+wt_cv+factor(mef)*method+factor(m)+k+ss_sd+ss_wt+(1|scenid), 
                      family = Gamma(link = 'log'), data = glmm_db)
 summary(absrelerr_glmm)
 exp(fixef(absrelerr_glmm)$cond)-1
 
-#### COmparison of estimates ####
+## COmparison of estimates ##
 mutate(outdb, reldif = (epg_comp-epg_ind_avg)/epg_ind_avg) %>% 
   split(~m+k) %>% 
   lapply(pull, "reldif") %>% 
   sapply(quantile, na.rm=T)
   
 
-# Passing-Bablok regression for method comparison
+#### Passing-Bablok regression for method comparison ####
 mcsplit <- split(outdb, ~m+k) |> lapply(\(x) mcreg(x$epg_comp, x$epg_ind_avg, method.reg = 'PaBaLarge'))
 mc1sim <- mcreg(outdb$epg_comp, outdb$epg_ind_avg, 
              method.reg = "PaBaLarge", na.rm = T)
