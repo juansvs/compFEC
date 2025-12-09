@@ -71,13 +71,13 @@ out <- lapply(1:nrow(scenarios), \(i) {
       # take subsample with the weight for flotation, with some error
       ind_subsamp_wts <- rnorm(n_samp,flot_wt,ss_sd)
       # calculate number of eggs in subsample, and corresponding epg
-      ind_subsamp_eggs <- rpois(n_samp, flot_wt*sample_epg)
+      ind_subsamp_eggs <- rpois(n_samp, ind_subsamp_wts*sample_epg)
       ind_epg_tru <- ind_subsamp_eggs/ind_subsamp_wts
-      # draw random number of how many are observed, this depends on the
-      # detection limit
-      ind_eggs_obs <- rpois(n_samp, ind_epg_tru/dl)
+      # draw random number of how many are observed, this depends on the test
+      # and its detection limit
+      ind_eggs_obs <- rpois(n_samp, ind_epg_tru * flot_wt * dl)
       # calculate epg
-      ind_epg <- ind_eggs_obs*dl
+      ind_epg <- ind_eggs_obs / (dl * flot_wt)
       
       # 2. pooled 
       # subsample weights, with some tolerance
@@ -93,11 +93,11 @@ out <- lapply(1:nrow(scenarios), \(i) {
       wm_wts <- c(rep(1, samples_needed),
                   numeric(n_samp-samples_needed)) #
       # redistribute the weights given some mixing efficiency
-      wm_wts_mxd <- wm_wts*(1-mef)+mean(wm_wts)*mef
-      comp_flot_eggs <- sum(floor(wm_wts_mxd*comp_subsamp_eggs))
-      comp_flot_epg_tru <- sum(comp_flot_eggs)/flot_wt
-      comp_egg_obs <- rpois(1, comp_flot_epg_tru/dl)
-      comp_epg <- comp_egg_obs*dl
+      wm_wts_mxd <- wm_wts * (1 - mef) + mean(wm_wts) * mef
+      comp_flot_eggs <- sum(floor(wm_wts_mxd * comp_subsamp_eggs))
+      comp_flot_epg_tru <- comp_flot_eggs / flot_wt
+      comp_egg_obs <- rpois(1, comp_flot_epg_tru * flot_wt * dl)
+      comp_epg <- comp_egg_obs / (flot_wt * dl)
       
       # output
       c(i,n_samp, resamp, n_inds_sampled, mef, comp_epg, mean(ind_epg), var(ind_epg), mean(feces_epg), var(feces_epg))
