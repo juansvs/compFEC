@@ -1,4 +1,3 @@
-library(ggplot2)
 # Pooled Fecal Egg Count simulation
 # Juan S. Vargas
 # November 2025
@@ -8,9 +7,8 @@ library(ggplot2)
 #' simulation focuses on understanding the differences between analyzing samples
 #' individually and as a pooled sample
 library(tidyverse)
-library(ggpubr)
 
-# set.seed(345)
+set.seed(345)
 rm(list = ls())
 gen_cv <- function(n) rlnorm(n, log(0.3431), 0.3184) 
 # gen_cv <- # VGAM::rtriangle(n, lower = 0.2, theta = 0.3, upper = 0.73)# coefficient of variation in weight samples, random value from a triangular dist. (0.2, 0.3, 0.73)
@@ -100,7 +98,7 @@ out <- lapply(1:nrow(scenarios), \(i) {
       comp_epg <- comp_egg_obs / (flot_wt * dl)
       
       # output
-      c(i,n_samp, resamp, n_inds_sampled, mef, comp_epg, mean(ind_epg), var(ind_epg), mean(feces_epg), var(feces_epg))
+      c(i,n_samp, wgt_cv, resamp, n_inds_sampled, mef, comp_epg, mean(ind_epg), var(ind_epg), mean(feces_epg), var(feces_epg))
     }
     )
     return(t(db))
@@ -111,9 +109,12 @@ out <- lapply(1:nrow(scenarios), \(i) {
 
 ### Post processing ###
 # join resulting dbs
-outdb <- do.call(rbind, out)
-outdb <- as.data.frame(outdb)
-names(outdb) <- c("scenario","n_samp", "resamp", "n_inds", "mef", "epg_comp", "epg_ind_avg", "epg_ind_var", "epg_tru_avg", "epg_tru_sd")
+outdb <- as.data.frame(do.call(rbind, out))
+outdb <- outdb[complete.cases(outdb),]
+names(outdb) <- c("scenario","n_samp", "wt_cv", "resamp",
+                  "n_inds", "mef", "epg_comp",
+                  "epg_ind_avg", "epg_ind_var", "epg_tru_avg",
+                  "epg_tru_sd")
 outdb <- left_join(outdb, mutate(scenarios,scenario = row_number()))
 head(outdb)
 
