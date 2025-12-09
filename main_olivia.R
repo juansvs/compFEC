@@ -15,10 +15,10 @@ rm(list = ls())
 gen_cv <- function(n) rlnorm(n, log(0.3431), 0.3184) 
 # gen_cv <- # VGAM::rtriangle(n, lower = 0.2, theta = 0.3, upper = 0.73)# coefficient of variation in weight samples, random value from a triangular dist. (0.2, 0.3, 0.73)
 
-niter <- 100            # number of iterations per scenario
+niter <- 20            # number of iterations per scenario
 Na <- 30                 # number of animals
 ms <- c(100, 500, 2000)  # population mean EPG values
-ks <- c(0.1, 0.5, 2, 10) # population EPG aggregation values
+ks <- c(0.1, 0.5, 2) # population EPG aggregation values
 targ_wt <- 5             # sample (farm level) target weight
 subsamp_wts <- c(0.5,1,2) # subsample weights for composite (at the lab level)
 subsamp_sds <- 1/1.96*c(0.1,0.2,0.5,1) # subsample weight sds: tolerance in g divided by 1.96 (95%CI of normal dist)
