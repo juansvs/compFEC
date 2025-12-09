@@ -78,16 +78,17 @@ out <- lapply(1:nrow(scenarios), \(i) {
       
       # 2. pooled 
       # subsample weights, with some tolerance
-      comp_subsamp_wts <- rnorm(n_samp,ss_wt,ss_sd)
+      comp_subsamp_wts <- rnorm(n_samp, ss_wt,ss_sd)
       # number of eggs in each subsample, drawn from Poisson dist, and
       # corresonding epg
-      comp_subsamp_eggs <- rpois(n_samp, comp_subsamp_wts*sample_epg)
-      comp_subsamp_epg <- comp_subsamp_eggs/comp_subsamp_wts
+      comp_subsamp_eggs <- rpois(n_samp, comp_subsamp_wts * sample_epg)
+      comp_subsamp_epg <- comp_subsamp_eggs / comp_subsamp_wts
       # mixing with some efficiency mef redistributes the eggs. Poor mixing
       # (mef~0) would result in taking a sample from only one individual. We
       # simulate this using a weighted mean.
       samples_needed <- flot_wt/ss_wt # how many individuals needed to fill the weight
-      wm_wts <- c(rep(1,samples_needed),numeric(n_samp-samples_needed)) #
+      wm_wts <- c(rep(1, samples_needed),
+                  numeric(n_samp-samples_needed)) #
       # redistribute the weights given some mixing efficiency
       wm_wts_mxd <- wm_wts*(1-mef)+mean(wm_wts)*mef
       comp_flot_eggs <- sum(floor(wm_wts_mxd*comp_subsamp_eggs))
@@ -104,7 +105,8 @@ out <- lapply(1:nrow(scenarios), \(i) {
   )
 }
 )
-#### Post processing ####
+
+### Post processing ###
 # join resulting dbs
 outdb <- do.call(rbind, out)
 outdb <- as.data.frame(outdb)
