@@ -12,7 +12,8 @@ library(ggpubr)
 
 # set.seed(345)
 rm(list = ls())
-gen_cv <- function(n) VGAM::rtriangle(n, lower = 0.2, theta = 0.3, upper = 0.73)# coefficient of variation in weight samples, random value from a triangular dist. (0.2, 0.3, 0.73)
+gen_cv <- function(n) rlnorm(n, log(0.3431), 0.3184) 
+# gen_cv <- # VGAM::rtriangle(n, lower = 0.2, theta = 0.3, upper = 0.73)# coefficient of variation in weight samples, random value from a triangular dist. (0.2, 0.3, 0.73)
 
 niter <- 100            # number of iterations per scenario
 Na <- 30                 # number of animals
