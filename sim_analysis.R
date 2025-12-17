@@ -2,14 +2,20 @@ library(tidyverse)
 library(performance)
 library(glmmTMB)
 library(mcr)
+library(car)
+library(emmeans)
+
 outdb <- readRDS('sim_output.rds')
 
+#### Descriptive analysis ####
 ## Relative error
 outdb_lg <- mutate(outdb, scenid = row_number()) %>% 
   pivot_longer(c(epg_comp, epg_ind_avg), names_to = "method",
                values_to = "epg") %>%
   mutate(err = epg-m, abserr = abs(err), relerr = (epg-m)/m,
          absrelerr = abs(relerr))
+
+quantile(outdb_lg$relerr)
 # quantiles for rel error with diff methods
 split(outdb_lg, ~method) %>% lapply("[[", 'relerr') %>% lapply(quantile)
 # quantiles of rel error separated additionally by m and k
@@ -17,17 +23,22 @@ split(outdb_lg, ~m+k+method) |> lapply("[[","relerr") |> lapply(summary)
 # absolute relative error within 10% of real value
 split(outdb_lg, ~m+k+method) |> lapply("[[","relerr") |>
   lapply(abs) |> lapply("<",0.1) |> sapply(mean)
-filter(outdb_lg, method == 'epg_comp', k<=0.5)|> split(~mef+m) |>
+filter(outdb_lg, method == 'epg_comp', k <= 0.5) |> split(~mef + m) |>
   lapply("[[", "relerr") |> lapply(summary)
 # proportion of false negatives by method
 outdb_lg %>% mutate(falseneg = relerr == -1) %>%
   summarise(mean(falseneg), .by = c(method))
-# 6.64% false negatives with compound method, 0.06% with ind. method.
+# 4.86% false negatives with compound method, 0.04% with ind. method.
 outdb_lg %>% mutate(falseneg = relerr == -1) %>%
   summarise(fn = mean(falseneg), .by = c(method, m, k))
-# with high aggregation false neg rate is even higher: 23.4% (m = 100, k = 0.1),
+# with high aggregation false neg rate is even higher: 22.3% (m = 100, k = 0.1),
 # compared to 0.3% with ind method. Also substantial at m = 500 and k = 0.1
-# (13.1% vs 0.2%), and at m = 2000 (10.0% vs. 0%). 
+# (12.6% vs 0.1%), and at m = 2000 (9.8% vs. 0%). 
+
+# median errors
+summarise(outdb_lg, med = median(relerr),
+          q1 = quantile(relerr,p = 0.25),
+          q3 = quantile(relerr, p = 0.75), .by = c(method, m, k))
 
 ## composite, influence of mixing efficiency
 mutate(outdb, absrelerr = abs(epg_comp-m)/m) %>% split(~mef) %>%
@@ -43,14 +54,39 @@ filter(outdb, m == 500, mef ==1) %>% summarise(hic = mean(epg_comp>=2000, na.rm=
                                                .by = k)
 filter(outdb, m == 2000, mef ==1) %>% summarise(loc = mean(epg_comp<=500, na.rm=T), loi = mean(epg_ind_avg<=500, na.rm=T),
                                                 .by = k)
-#### Statistical tests ####
-# false negatives
-fn_db <- mutate(outdb_lg, fn = relerr == -1) %>% slice_sample(prop = 0.1)
-fn_glmm <- glmmTMB(fn ~ n_samp + resamp + wt_cv + factor(mef) * method +
-                     factor(m) + factor(k) + ss_sd + ss_wt + factor(dl) + (1|scenid),
-                   family = 'binomial', data = fn_db)
-summary(fn_glmm)
+#### Stats ####
+db_slice <- slice_sample(outdb_lg, prop = 0.05)
+db_summarised <- summarise(outdb, 
+  across(c(epg_comp, epg_ind_avg), list(mean = mean, median = median)),
+  .by = scenario) %>%
+  left_join(distinct(outdb, scenario, n_samp, wt_cv, resamp,
+                                mef, m, k, ss_wt, ss_sd, dl, wgt_cv)) %>%
+  pivot_longer(c(epg_comp_mean, epg_ind_avg_mean), names_to = "method",
+               values_to = "epg", names_prefix = "epg_") %>%
+  mutate(err = epg-m, abserr = abs(err), relerr = (epg-m)/m,
+         absrelerr = abs(relerr))  
 
+##### False negatives  model ####
+fn_db <- mutate(outdb_lg, fn = epg == 0) %>% slice_sample(prop = 0.05)
+fn_glmm <- glmmTMB(fn ~ factor(m) + factor(k) +
+                     n_samp * resamp + wt_cv +
+                     factor(mef) * method +
+                     factor(dl) + ss_sd + ss_wt + (1|scenario),
+                   family = 'binomial', data = fn_db,
+                   control = glmmTMBControl(optimizer = optim,
+                                            optArgs = list(method = "BFGS")))
+summary(fn_glmm)
+exp(fixef(fn_glmm)$cond)-1
+# Anova
+Anova(fn_glmm)
+
+# Marginal means
+emmeans(fn_glmm, ~ method * mef, type = "response")
+emmeans(fn_glmm, ~ k, type = "response")
+emmeans(fn_glmm, ~ m, type = "response")
+emmeans(fn_glmm, ~ dl, type = "response")
+# marginal prob. of false neg. for k = 0.1, 0.5, 2, 10 are 1.64e-10,
+# 1.88e-11, 3.29e-12, and 1.137e-12.
 # same analysis but include only one set of m and k, and focus on factors that
 # can be controlled
 fn_db2 <- mutate(outdb_lg, fn = relerr == -1) %>%
@@ -71,18 +107,58 @@ summary(fn_glmm2)
 # k = 0.5 the probability is decreased by 88.7% compared to the highest
 # aggregation, and at k = 2 the reduction is of 98.3%.
 
-glmm_db <- slice_sample(outdb_lg, prop = 0.1) %>% mutate(resp = abs(0.1+epg-m)/m) 
-absrelerr_glmm <- glmmTMB(resp~n_samp*resamp+wt_cv+factor(mef)*method+factor(m)+k+ss_sd+ss_wt+(1|scenid), 
+##### Absolute relative error model ####
+# create database for model
+glmm_db <- slice_sample(outdb, prop = 0.05) %>%
+  mutate(scenid = row_number()) %>%
+  pivot_longer(c(epg_comp, epg_ind_avg), names_to = "method", values_to = "epg") %>%
+  mutate(absrelerr = abs(0.1+ epg - m)/m)
+
+# fit glmm
+absrelerr_glmm <- glmmTMB(absrelerr ~ n_samp * resamp + wt_cv +
+                            factor(mef) * method + factor(dl) +
+                            factor(m) + factor(k) +
+                            ss_sd + ss_wt + (1|scenid),
                      family = Gamma(link = 'log'), data = glmm_db)
 summary(absrelerr_glmm)
 exp(fixef(absrelerr_glmm)$cond)-1
+Anova(absrelerr_glmm)
+emmeans::emmeans(absrelerr_glmm, ~k, type = "response")
+emmeans::emmeans(absrelerr_glmm, ~m, type = "response")
+emmeans::emmeans(absrelerr_glmm, ~method * mef, type = "response")
+emmeans::emmeans(absrelerr_glmm, ~n_samp * resamp, type = "response")
+emmeans::emmeans(absrelerr_glmm, ~dl, type = "response")
+
+##### Relative error model ####
+# create database for model
+glmm_re_db <- slice_sample(outdb_lg, prop = 0.1)
+# fit glmm
+# removed interaction terms due to high VIF
+relerr_glmm <- glmmTMB(relerr ~ n_samp * resamp + wt_cv +
+                            factor(mef) * method + factor(dl) +
+                            factor(m) + factor(k) +
+                            ss_sd + ss_wt + (1|scenid),
+                          family = tweedie(), 
+                       data = glmm_re_db)
+summary(relerr_glmm)
+# performance
+performance::check_model(relerr_glmm)
+
+# Anova
+
+# Estimated marginal means
+
 
 ## COmparison of estimates ##
 mutate(outdb, reldif = (epg_comp-epg_ind_avg)/epg_ind_avg) %>% 
   split(~m+k) %>% 
   lapply(pull, "reldif") %>% 
   sapply(quantile, na.rm=T)
-  
+
+##### Aggregated model ####
+agg_db <- summarise(outdb, across(c(epg_comp, epg_ind_avg), .fns = c(mean, median)),
+          .by = scenario) %>%
+  left_join(select(outdb, scenario:mef))
 
 #### Passing-Bablok regression for method comparison ####
 mcsplit <- split(outdb, ~m+k) |> lapply(\(x) mcreg(x$epg_comp, x$epg_ind_avg, method.reg = 'PaBaLarge'))
