@@ -4,6 +4,52 @@ library(ggpubr)
 
 # import data
 outdb <- readRDS("sim_output.rds")
+
+# density plot of relative error wrt m, k, and method
+p_difdens <- mutate(outdb,
+                    comp = ((epg_comp - m) / m),
+                    ind = ((epg_ind_avg - m) / m)) %>%
+  filter(dl == 1/50) %>%
+  pivot_longer(cols = c(comp, ind),
+               names_to = "method",
+               values_to = "rdif") %>%
+  ggplot(aes(rdif)) +
+  geom_density(aes(y = after_stat(scaled),
+                   fill = method),
+               show.legend = F, lwd = 0.5) +
+  geom_vline(xintercept = 0, lty = 2) +
+  facet_grid(m ~ k, scales = "free",
+             labeller = labeller(m = \(x) paste("m =", x), 
+                                 k = \(x) paste("k =", x))) +
+  labs(x = "Relative error", y = "Density", fill = "Method")
+
+# Export figure
+p_difdens + theme_classic() + scale_fill_manual(values = c("gray80", "gray20"))
+png("figures/relerrdensplot.png", 6, 4, units = 'in', res = 300)
+p_difdens +
+  theme_classic() +
+  coord_cartesian(xlim = c(NA, 3)) +
+  scale_fill_discrete(palette = hcl.colors(2, alpha = 0.5))
+dev.off()
+
+# dens plot of rel. error wrt mixing efficiency for diff. mean burdens, high
+# aggregation
+p_mef_dens <- filter(outdb, resamp == 0, k <= 0.5, dl == 1/50) %>%
+  ggplot(aes((epg_comp - m) / m)) +
+  geom_density(aes(fill = factor(mef)), show.legend = F) +
+  geom_vline(xintercept = 0, lty = 2) +
+  facet_wrap( ~ m,
+              labeller = labeller(m = \(x) paste("m =", x)),
+              scales = 'free') +
+  labs(x = "Relative error", y = "Density") +
+  coord_cartesian(xlim = c(NA, 3)) +
+  scale_fill_discrete(palette = hcl.colors(3, "PuRd", alpha = 0.5))
+# export
+png("figures/mefdensplot.png", 5, 2, 'in', res = 300)
+p_mef_dens + theme_classic()
+dev.off()
+
+
 # fig 2 shows the absolute difference of the composite FEC with respect to the
 # population m
 p_absdif <- ggplot(outdb, aes(n_samp,abs(epg_comp-m)))+
@@ -90,7 +136,7 @@ filter(outdb, resamp == 0, mef == 1) %>%
   labs(x = "Sample weight CV", y = "Relative error")
 
 # comp vs ind
-pcomp <- lapply(c(100,500,2000), \(x) {
+pcomp <- lapply(c(100, 500, 2000), \(x) {
   ggplot(filter(outdb, m == x), aes(epg_comp, epg_ind_avg)) +
   geom_abline(slope = 1, linetype = 2) +
   geom_hline(aes(yintercept = m), lty = 3) +
@@ -145,35 +191,9 @@ pivot_longer(outdb, cols = c(epg_comp, epg_ind_avg), names_to = "method",
              labeller = labeller(m = \(x) paste("m =", x), 
                                  k = \(x) paste("k =", x))) +
   labs(x = "FEC estimate (epg)", y = "Density", fill = "Method")
-# scale_x_continuous(transform = 'log1p')
-theme_pubr()
 
-# density plot of relative difference wrt m, k
-p_difdens <- mutate(outdb,
-                    comp = ((epg_comp - m) / m),
-                    ind = ((epg_ind_avg - m) / m)) %>%
-  filter(dl == 1/50) %>%
-  pivot_longer(cols = c(comp, ind),
-               names_to = "method",
-               values_to = "rdif") %>%
-  ggplot(aes(rdif)) +
-  geom_vline(xintercept = 0, lty = 2) +
-  geom_density(aes(y = after_stat(scaled), fill = method),
-               show.legend = F, lwd = 0.5)+
-  facet_grid(m ~ k, scales = "free_x",
-             labeller = labeller(m = \(x) paste("m =", x), 
-                                      k = \(x) paste("k =", x))) +
-  labs(x = "Relative error", y = "Density", fill = "Method")
-  scale_x_continuous(transform = 'log1p')
-  theme_pubr()
 
-p_difdens + theme_classic() + scale_fill_manual(values = c("gray80", "gray20"))
-png("figures/relerrdensplot.png", 6, 4, units = 'in', res = 300)
-p_difdens +
-  theme_classic() +
-  coord_cartesian(xlim = c(NA, 4)) +
-  scale_fill_discrete(palette = hcl.colors(2, alpha = 0.5))
-dev.off()
+
 
 
 # scatter plot comp vs ind
@@ -226,22 +246,7 @@ filter(outdb, resamp == 0, k <= 0.5) %>%
              scales = 'free') +
   labs(x = "Mixing efficiency f", y = "Density")+
   theme_classic()
-# dens plot of rel. error wrt mixing efficiency for diff. mean burdens, high
-# aggregation
-p_mef_dens <- filter(outdb, resamp == 0, k <= 0.5, dl == 1/50) %>%
-  ggplot(aes((epg_comp - m) / m)) +
-  geom_density(aes(fill = factor(mef)), show.legend = F) +
-  geom_vline(xintercept = 0, lty = 2) +
-  facet_wrap( ~ m,
-              labeller = labeller(m = \(x) paste("m =", x)),
-              scales = 'free') +
-  labs(x = "Relative error", y = "Density") +
-  coord_cartesian(xlim = c(NA, 4)) +
-  scale_fill_discrete(palette = hcl.colors(3, "PuRd", alpha = 0.5))
-  
-png("figures/mefdensplot.png", 5, 2, 'in', res = 300)
-p_mef_dens + theme_classic()
-dev.off()
+
 
 
 filter(outdb, resamp == 0) %>% 
@@ -287,6 +292,12 @@ pivot_longer(outdb, cols = c("epg_comp", "epg_ind_avg"),
              labeller = labeller(m = \(x) paste("m =", x), 
                                  k = \(x) paste("k =", x))) +
   theme_pubr()
+
+### False negative rate plot, method as color, wrt m/k
+pivot_longer(outdb, cols = c("epg_comp", "epg_ind_avg"), 
+             names_to = "method", values_to = "epg") %>% 
+  mutate(fn = epg == 0) %>% 
+  ggplot(aes(method, fn))
   
 pdf(width = 6, height = 4)
 p_absdif
