@@ -13,26 +13,26 @@ rm(list = ls())
 gen_cv <- function(n) rlnorm(n, log(0.3431), 0.3184) 
 # gen_cv <- # VGAM::rtriangle(n, lower = 0.2, theta = 0.3, upper = 0.73)# coefficient of variation in weight samples, random value from a triangular dist. (0.2, 0.3, 0.73)
 
-niter <- 20            # number of iterations per scenario
-Na <- 30                 # number of animals
+niter <- 40            # number of iterations per scenario
+Na <- seq(10, 30, 5)     # number of animals sampled
 ms <- c(100, 500, 2000)  # population mean EPG values
-ks <- c(0.1, 0.5, 2) # population EPG aggregation values
+ks <- c(0.1, 0.5, 2, 10) # population EPG aggregation values
 targ_wt <- 5             # sample (farm level) target weight
+wgt_cv <- c(0.1, 0.4, 0.7) # coefficient of variation in sample weights
 subsamp_wts <- c(0.5, 1, 2)# subsample weights for composite (at the lab level)
 subsamp_sds <- 1/1.96 * c(0.1, 0.2, 0.5, 1) # subsample weight sds: tolerance in g divided by 1.96 (95%CI of normal dist)
 flot_wt <- 2             # subsample weight for indiv. FEC. 2 g for McMaster technique
 # flot_vol <- 30           # flotation solution volume (mL)
 # slide_vol <- 0.3         # volume in counting slide (mL)
-dilution_factors <- c(1/50, 1/30, 1/20, 1/5) # egg counting test dilution factor
+dilution_factors <- c(1/50, 1/20, 1/5) # egg counting test dilution factor
 mix_effs <- c(0, 0.5, 1)   # fecal sample mixing efficiency
 resamp <- c(TRUE, FALSE)         # with resampling Y/N   
 
 # scenarios, each one has a different combination of m, the mean parasite
 # burden, and k, the inverse aggregation parameter
-scenarios <- expand.grid(m = ms, k = ks, resamp = resamp, 
+scenarios <- expand.grid(n_samp = Na, m = ms, k = ks, resamp = resamp, 
                          ss_wt = subsamp_wts, ss_sd = subsamp_sds, 
-                         mef = mix_effs, dl = dilution_factors
-                         )
+                         mef = mix_effs, dl = dilution_factors, wgt_cv = wgt_cv)
 
 out <- lapply(1:nrow(scenarios), \(i) {
   with(scenarios[i,],{
@@ -40,16 +40,15 @@ out <- lapply(1:nrow(scenarios), \(i) {
       # outdb <- data.frame(m = numeric(nrow(scenarios)), k = 0, sw = 0, cv = 0, dl = 0, n = 0, epg_obs = 0, epg_tru = 0)
       # random coef of var from triangular dist, random target weight between 1
       # and 6
-      n_samp <- sample(seq(10,Na,2),1)
-      wgt_cv <- gen_cv(1)
+
       #wgt_sd <- s_targ_wt*wgt_cv
       # generate EPG values for the population, one per individual. This
       # represents the mean FEC per individual
-      feces_epg <- rnbinom(n = Na, size = k, mu = m)
+      feces_epg <- rnbinom(n = 30, size = k, mu = m)
       
       # simulate samples of these following a Poisson dist, depending on random n
       # samples per individual
-      inds_sampled <- sample(1:Na, n_samp, replace = resamp)
+      inds_sampled <- sample(1:30, n_samp, replace = resamp)
       n_inds_sampled <- length(unique(inds_sampled))
       
       # simulate variable weight taken from the animals
@@ -101,7 +100,8 @@ out <- lapply(1:nrow(scenarios), \(i) {
       c(i,n_samp, wgt_cv, resamp, n_inds_sampled, mef, comp_epg, mean(ind_epg), var(ind_epg), mean(feces_epg), var(feces_epg))
     }
     )
-    return(t(db))
+    meandb <- colMeans(t(db))
+    return(meandb)
   }
   )
 }
