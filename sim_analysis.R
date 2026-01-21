@@ -17,13 +17,13 @@ outdb_lg <- mutate(outdb, scenid = row_number()) %>%
 
 quantile(outdb_lg$relerr)
 # quantiles for rel error with diff methods
-split(outdb_lg, ~method) %>% lapply("[[", 'relerr') %>% lapply(quantile)
+split(outdb_lg, ~method) |> lapply("[[", 'relerr') |> lapply(quantile)
 # quantiles of rel error separated additionally by m and k
 split(outdb_lg, ~m+k+method) |> lapply("[[","relerr") |> lapply(summary)
 # absolute relative error within 10% of real value
 split(outdb_lg, ~m+k+method) |> lapply("[[","relerr") |>
   lapply(abs) |> lapply("<",0.1) |> sapply(mean)
-filter(outdb_lg, method == 'epg_comp', k <= 0.5) |> split(~mef + m) |>
+filter(outdb_lg, method == "epg_comp", k <= 0.5) |> split(~mef + m) |>
   lapply("[[", "relerr") |> lapply(summary)
 # proportion of false negatives by method
 outdb_lg %>% mutate(falseneg = relerr == -1) %>%
@@ -41,10 +41,16 @@ summarise(outdb_lg, med = median(relerr),
           q3 = quantile(relerr, p = 0.75), .by = c(method, m, k))
 
 ## composite, influence of mixing efficiency
-mutate(outdb, absrelerr = abs(epg_comp-m)/m) %>% split(~mef) %>%
-  lapply("[[", "absrelerr") %>% lapply(summary)
-filter(outdb, k<=0.5) %>% mutate(relerr = (epg_comp-m)/m) %>% split(~mef) %>%
-  lapply("[[", "relerr") %>% sapply(quantile)
+mutate(outdb, absrelerr = abs(epg_comp-m)/m) %>%
+  split(~mef) %>%
+  lapply("[[", "absrelerr") %>%
+  lapply(summary)
+# at high aggregation (k<=0.5)
+filter(outdb, k<=0.5) %>%
+  mutate(relerr = (epg_comp-m)/m) %>%
+  split(~mef) %>%
+  lapply("[[", "relerr") %>%
+  sapply(quantile)
 
 # misclassification
 filter(outdb, m == 100, mef==1) %>% summarise(hic = mean(epg_comp>=500, na.rm=T), hii = mean(epg_ind_avg>=500, na.rm=T), .by = k)
@@ -92,7 +98,7 @@ emmeans(fn_glmm, ~ dl, type = "response")
 fn_db2 <- mutate(outdb_lg, fn = relerr == -1) %>%
   filter(m == 500, k == 0.5) %>%
   slice_sample(prop = 0.2)
-fn_glmm2 <- glmmTMB(fn ~ n_samp + resamp + wt_cv + factor(mef) * method +
+fn_glmm2 <- glmmTMB(fn ~ n_samp + resamp + wgt_cv + factor(mef) * method +
                      ss_sd + ss_wt + factor(dl) + (1|scenid),
                    family = 'binomial', data = fn_db,
                    control = glmmTMBControl(optimizer = optim,
@@ -112,10 +118,10 @@ summary(fn_glmm2)
 glmm_db <- slice_sample(outdb, prop = 0.05) %>%
   mutate(scenid = row_number()) %>%
   pivot_longer(c(epg_comp, epg_ind_avg), names_to = "method", values_to = "epg") %>%
-  mutate(absrelerr = abs(0.1+ epg - m)/m)
+  mutate(absrelerr = abs(0.1 + epg - m)/m)
 
 # fit glmm
-absrelerr_glmm <- glmmTMB(absrelerr ~ n_samp * resamp + wt_cv +
+absrelerr_glmm <- glmmTMB(absrelerr ~ n_samp * resamp + wgt_cv +
                             factor(mef) * method + factor(dl) +
                             factor(m) + factor(k) +
                             ss_sd + ss_wt + (1|scenid),
@@ -149,7 +155,7 @@ performance::check_model(relerr_glmm)
 # Estimated marginal means
 
 
-## COmparison of estimates ##
+## Comparison of estimates ##
 mutate(outdb, reldif = (epg_comp-epg_ind_avg)/epg_ind_avg) %>% 
   split(~m+k) %>% 
   lapply(pull, "reldif") %>% 
