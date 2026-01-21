@@ -22,11 +22,11 @@ cme <- summarise(epg_raw_data, m = mean(epg, na.rm =T),
                  v = var(epg, na.rm = T), n = n(), .by = id) %>%
   mutate(cme = (m^2 - (v / n)) / (v - m))
 
-####----- Fit NB ----
+####----- Fit distributions ----
 epgdata <- split(epg_raw_data, ~id)|>
   lapply('[[', "epg") |>
   lapply(\(x) subset(x, subset = complete.cases(x)))
-# Fit neg bin dist to raw epg data
+# Negative binomial
 nbfits <- lapply(epgdata, 
   \(x) if(sum(x)>0) fitdistr(x, densfun = 'negative binomial') else NULL) |>
   lapply(coef)
@@ -35,7 +35,7 @@ nbfitsdb <- do.call(rbind, nbfits) %>%
   as.data.frame() %>%
   rownames_to_column("id")
 
-# Fit Poisson distribution
+# Poisson
 poisfits <- lapply(epgdata,
   \(x) if(sum(x)>0) fitdistr(x, densfun = 'Poisson') else NULL) |>
   lapply(coef)
