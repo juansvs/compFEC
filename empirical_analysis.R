@@ -83,6 +83,17 @@ nbfits_joint
 
 #### Stats #####
 
+# lmer of FEC wrt covariates
+fec_glmm <- lmer(m ~ sample_month + (1 | farm), nbfits_joint)
+summary(fec_glmm)
+
+# we fit multiple models and there is no clear link between FEC and any of the 
+# covariates.
+
+k_glmm <- lmer(size ~ Size + (1 | farm), nbfits_joint)
+summary(k_glmm)
+k_lm <- glm(size ~ Size + System, family = gaussian(link = "log"), data = nbfits_joint)
+summary(k_lm)
 # correlation between individual and composite mean burden estimates
 plot(nbfits_joint$m, nbfits_joint$epg_comp, pty='s')
 abline(0,1)
