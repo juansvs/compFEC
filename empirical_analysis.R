@@ -138,14 +138,14 @@ mc2db <- tibble(epg_comp = seq(0, 6, 0.5)) %>%
 
 #### Visualizations ####
 # k estimates, MLE vs CME
-p1 <- ggplot(nbfits_joint, aes(cme, size)) +
+p1 <- ggplot(nbfits_joint, aes(size, cme)) +
   geom_abline(slope = 1) +
   # geom_smooth(method = 'lm', color = 'gray30')+
-  geom_ribbon(aes(epg_comp, est, ymin = lc, ymax = uc),
-              data = mc2db, alpha = 0.5, fill = "dodgerblue") +
-  geom_line(aes(epg_comp, est),data = mc2db, color = 'dodgerblue', lty = 2) +
-  geom_point() +
-  labs(x = "CME k", y = "MLE k")
+  # geom_ribbon(aes(epg_comp, est, ymin = lc, ymax = uc),
+  #             data = mc2db, alpha = 0.5, fill = "dodgerblue") +
+  # geom_line(aes(epg_comp, est),data = mc2db, color = 'dodgerblue', lty = 2) +
+  geom_point(aes(color = nbp > 0.05, shape = nbp > 0.05), show.legend = FALSE) +
+  labs(x = "MLE k", y = "CME k")
 p1 + theme_pubr()
 
 # epg, ind vs. comp
@@ -156,20 +156,19 @@ p2 <- mutate(nbfits_joint, ind_sem = sqrt(v/n)) %>%
               data = mc1db, alpha = 0.5, fill = "dodgerblue") +
   geom_line(aes(epg_comp, est), data = mc1db, color = 'dodgerblue', lty = 2) +
   geom_pointrange(aes(ymin = m - ind_sem, ymax = m + ind_sem))+
-  labs(x = "Pooled FEC (epg)", y = "Individual FEC (epg)")
+  labs(x = "Composite FEC (epg)", y = "Individual FEC (epg)")
 p2 + theme_pubr() + coord_flip()
 
 # p2 on log scale, without PB regression
 p2_log <- mutate(nbfits_joint, ind_sem = sqrt(v/n)) %>% 
-  filter(!is.na(epg_comp)) %>% 
-  ggplot(aes(m + 1, epg_comp + 1)) +
+  ggplot(aes(m + 1, epg_comp + 1, color = nbp > 0.05, shape = nbp > 0.05)) +
   geom_abline(slope = 1) +
   # geom_ribbon(aes(epg_comp, est, ymin = lc, ymax = uc),
   #             data = mc1_log_db, alpha = 0.5, fill = "dodgerblue") +
   # geom_line(aes(epg_comp, est), data = mc1_log_db, color = 'dodgerblue', lty = 2) +
-  geom_linerange(aes(xmin = m - ind_sem+1, xmax = m + ind_sem+1))+
-  geom_point()+
-  labs(x = "Individual FEC (epg)", y = "Pooled FEC (epg)")
+  geom_linerange(aes(xmin = m - ind_sem + 1, xmax = m + ind_sem + 1), show.legend = FALSE) +
+  geom_point(show.legend = FALSE) +
+  labs(x = "Individual FEC (epg)", y = "Composite FEC (epg)")
 p2_log + theme_pubr() + coord_transform(x = "log10", y = "log10")
 
 # correlation between mean and k
@@ -180,8 +179,12 @@ p3 <- pivot_longer(nbfits_joint, c(m, epg_comp),
 p3
 
 # arrange the plots together
-ggarrange(p2_log + theme_pubr() + coord_transform(x = "log10", y = "log10"),
-          p1 + theme_classic(),
-          p3 + theme_classic(),
-          labels = "auto", ncol = 3,
+ggarrange(p2_log +
+            theme_pubr() +
+            scale_x_continuous(breaks = c(20, 200, 2000)) +
+            scale_y_continuous(breaks = c(20, 200, 2000)) +
+            coord_transform(x = "log10", y = "log10"),
+          p1 + theme_pubr(),
+          # p3 + theme_classic(),
+          labels = "auto", ncol = 2,
           legend = "none")
