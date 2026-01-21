@@ -26,23 +26,21 @@ flot_wt <- 2             # subsample weight for FEC. e.g. 2 g for McMaster metho
 dilution_factors <- c(1/50, 1/20, 1/5) # egg counting test dilution factor
 mix_effs <- c(0, 0.5, 1)   # fecal sample mixing efficiency
 resamp <- c(TRUE, FALSE)         # with resampling Y/N   
+count_duplicate <- c(TRUE, FALSE)
 
 # scenarios, each one has a different combination of parameter values
 scenarios <- expand.grid(n_samp = Na, m = ms, k = ks, targ_wt = targ_wt,
                          resamp = resamp, ss_wt = subsamp_wts, ss_sd = subsamp_sds,
-                         mef = mix_effs, dl = dilution_factors, wgt_cv = wgt_cv)
+                         mef = mix_effs, dl = dilution_factors, wgt_cv = wgt_cv,
+                         dup = count_duplicate)
 
 # main simulation function. Do the sampling and FEC for every parameter
 # combination 10 times over and put out a database with the mean and median
 # result for every one.
-out <- lapply(1:nrow(scenarios), \(i) {
-  with(scenarios[i,],{
-    db <- replicate(niter,{
-      # outdb <- data.frame(m = numeric(nrow(scenarios)), k = 0, sw = 0, cv = 0, dl = 0, n = 0, epg_obs = 0, epg_tru = 0)
-      # random coef of var from triangular dist, random target weight between 1
-      # and 6
-
-      #wgt_sd <- s_targ_wt*wgt_cv
+sampled_scenarios <- slice_sample(scenarios, n = 5000)
+out <- lapply(1:nrow(sampled_scenarios), \(i) {
+  with(sampled_scenarios[i,], {
+    # db <- replicate(niter,{
       # generate EPG values for the population, one per individual. This
       # represents the true mean FEC per individual
       feces_epg <- rnbinom(n = 30, size = k, mu = m)
@@ -80,6 +78,8 @@ out <- lapply(1:nrow(scenarios), \(i) {
       # 2. pooled 
       # subsample weights, with some tolerance
       comp_subsamp_wts <- rnorm(n_samp, ss_wt, ss_sd)
+      # replace negative weights with the target weight - sd
+      comp_subsamp_wts[comp_subsamp_wts < 0] <- ss_wt - ss_sd
       # number of eggs in each subsample, drawn from Poisson dist
       comp_subsamp_eggs <- rpois(n_samp, comp_subsamp_wts * sample_epg)
       # mixing with some efficiency mef redistributes the eggs. Poor mixing
@@ -89,24 +89,40 @@ out <- lapply(1:nrow(scenarios), \(i) {
       # proportion of each subsample effectively taken under the worst possible
       # mixing.
       wm_wts <- c(rep(1, samples_needed),
-                  numeric(n_samp-samples_needed)) #
+                  numeric(n_samp-samples_needed))
       # redistribute the weights given some mixing efficiency
       wm_wts_mxd <- wm_wts * (1 - mef) + mean(wm_wts) * mef
-      # number of eggs drawn in flotation subsample 
-      comp_flot_eggs <- sum(floor(wm_wts_mxd * comp_subsamp_eggs))
+      # number of eggs drawn in flotation subsample. The weights multiplied by
+      # the number of eggs from each subsample. These egg numbers are reshuffled
+      # to simulate duplicate counting
+      comp_subsamp_eggs_reordered <-
+        matrix(comp_subsamp_eggs[replicate(3, sample(n_samp))], ncol = 3)
+      comp_flot_eggs <- apply(wm_wts_mxd * comp_subsamp_eggs_reordered, 2, \(x) sum(floor(x)))
       # number of eggs observed
-      comp_egg_obs <- rpois(1, comp_flot_eggs * dl)
+      comp_egg_obs <- rpois(3, comp_flot_eggs * dl)
       comp_epg <- comp_egg_obs / (flot_wt * dl)
-      
+      # count multiple slides
+      if(dup) {
+        # check that slides 1 and 2 are within 10% of each other,
+        # if not read a third slide
+        if(all(comp_epg[1:2] > 0)) {
+          comp_count_dif <- abs(comp_epg[1] - comp_epg[2]) / comp_epg[2]
+          if(comp_count_dif <= 0.1) {
+            comp_epg <- mean(comp_epg[1:2])
+          } else {
+            comp_epg <- mean(comp_epg)
+          }
+        } else {
+          comp_epg <- mean(comp_epg)
+        }
+      } else {
+        comp_epg <- comp_epg[1]
+      }
       # output
-      c(i, n_samp, wgt_cv, resamp, n_inds_sampled, mef, comp_epg,
-        mean(ind_epg), sd(ind_epg), mean(feces_epg), sd(feces_epg))
+      c(i, n_inds_sampled, comp_epg,
+        mean(ind_epg), sd(ind_epg))
     }
     )
-    meandb <- t(db)
-    return(meandb)
-  }
-  )
 }
 )
 
@@ -114,11 +130,9 @@ out <- lapply(1:nrow(scenarios), \(i) {
 # join resulting dbs
 outdb <- as.data.frame(do.call(rbind, out))
 outdb <- outdb[complete.cases(outdb),]
-names(outdb) <- c("scenario", "n_samp", "wt_cv", "resamp",
-                  "n_inds", "mef", "epg_comp",
-                  "epg_ind_avg", "epg_ind_sd", "epg_tru_avg",
-                  "epg_tru_sd")
-outdb <- left_join(outdb, mutate(scenarios, scenario = row_number()))
+names(outdb) <- c("scenario", "n_inds", "epg_comp",
+                  "epg_ind_avg", "epg_ind_sd")
+outdb <- left_join(outdb, mutate(sampled_scenarios, scenario = row_number()))
 head(outdb)
 
 # export
