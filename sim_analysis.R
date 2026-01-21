@@ -35,10 +35,10 @@ outdb_lg %>% mutate(falseneg = relerr == -1) %>%
 # compared to 0.3% with ind method. Also substantial at m = 500 and k = 0.1
 # (12.6% vs 0.1%), and at m = 2000 (9.8% vs. 0%). 
 
-# median errors
-summarise(outdb_lg, med = median(relerr),
-          q1 = quantile(relerr,p = 0.25),
-          q3 = quantile(relerr, p = 0.75), .by = c(method, m, k))
+# median abs rel errors + IQR
+summarise(outdb_lg, med = median(absrelerr),
+          q1 = quantile(absrelerr,p = 0.25),
+          q3 = quantile(absrelerr, p = 0.75), .by = c(method))
 
 ## composite, influence of mixing efficiency
 mutate(outdb, absrelerr = abs(epg_comp-m)/m) %>%
@@ -73,10 +73,10 @@ db_summarised <- summarise(outdb,
          absrelerr = abs(relerr))  
 
 ##### False negatives  model ####
-fn_db <- mutate(outdb_lg, fn = epg == 0) %>% slice_sample(prop = 0.05)
+fn_db <- mutate(outdb_lg, fn = epg == 0) 
 fn_glmm <- glmmTMB(fn ~ factor(m) + factor(k) +
-                     n_samp * resamp + wt_cv +
-                     factor(mef) * method +
+                     n_samp * resamp + wgt_cv +
+                     factor(mef) * method + factor(dup) +
                      factor(dl) + ss_sd + ss_wt + (1|scenario),
                    family = 'binomial', data = fn_db,
                    control = glmmTMBControl(optimizer = optim,
@@ -115,15 +115,14 @@ summary(fn_glmm2)
 
 ##### Absolute relative error model ####
 # create database for model
-glmm_db <- slice_sample(outdb, prop = 0.05) %>%
-  mutate(scenid = row_number()) %>%
+glmm_db <- mutate(outdb, scenid = row_number()) %>%
   pivot_longer(c(epg_comp, epg_ind_avg), names_to = "method", values_to = "epg") %>%
   mutate(absrelerr = abs(0.1 + epg - m)/m)
 
 # fit glmm
 absrelerr_glmm <- glmmTMB(absrelerr ~ n_samp * resamp + wgt_cv +
                             factor(mef) * method + factor(dl) +
-                            factor(m) + factor(k) +
+                            factor(m) + factor(k) + factor(dup) +
                             ss_sd + ss_wt + (1|scenid),
                      family = Gamma(link = 'log'), data = glmm_db)
 summary(absrelerr_glmm)
@@ -157,9 +156,14 @@ performance::check_model(relerr_glmm)
 
 ## Comparison of estimates ##
 mutate(outdb, reldif = (epg_comp-epg_ind_avg)/epg_ind_avg) %>% 
-  split(~m+k) %>% 
-  lapply(pull, "reldif") %>% 
-  sapply(quantile, na.rm=T)
+  summarise(med = median(reldif, na.rm = T),
+            lq = quantile(reldif, p = 0.25, na.rm = T),
+            uq = quantile(reldif, p = 0.75, na.rm = T),
+            under = mean(reldif < 0, na.rm=T),
+            .by = c(m, k)) %>% 
+  arrange(k, m)
+
+
 
 ##### Aggregated model ####
 agg_db <- summarise(outdb, across(c(epg_comp, epg_ind_avg), .fns = c(mean, median)),
